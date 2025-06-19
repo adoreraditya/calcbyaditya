@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>CalcbyAditya</title>
+  <link rel="manifest" href="manifest.json"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root { --bg-light: #f0f0f0; --bg-dark: #1e1e1e; --text-light: #000; --text-dark: #fff; }
+    body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif;
+      background-color: var(--bg-light); color: var(--text-light);
+      display: flex; flex-direction: column; align-items: center;
+      transition: background 0.3s, color 0.3s; }
+    body.dark { background-color: var(--bg-dark); color: var(--text-dark); }
+    .theme-toggle { margin: 10px; padding: 10px 20px; font-size: 1.5rem;
+      background: rgba(255,255,255,0.2); border: none; border-radius: 10px; color: inherit; cursor: pointer; }
+    .calculator { background: rgba(255,255,255,0.1); backdrop-filter: blur(20px); padding: 10px; border-radius: 20px;
+      width: 95%; max-width: 400px; margin-bottom: 10px; }
+    .display { width: 100%; height: 60px; font-size: 1.6rem; border: none; border-radius: 12px; padding: 10px;
+      background: rgba(255,255,255,0.1); color: inherit; text-align: right; margin-bottom: 10px; }
+    .buttons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    button { padding: 16px; font-size: 1rem; border: none; border-radius: 12px;
+      background: rgba(255,255,255,0.2); color: inherit; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: rgba(255,255,255,0.4); }
+    .equal { background: #ff6b6b; color: white; }
+    .equal:hover { background: #ff8787; }
+    .clear { background: #ffcc00; color: black; }
+    .clear:hover { background: #ffdd33; }
+    .history { width: 95%; max-width: 400px; background: rgba(255,255,255,0.1); margin-bottom: 10px;
+      padding: 10px; border-radius: 10px; overflow-y: auto; max-height: 200px; backdrop-filter: blur(10px); color: inherit; }
+    .history h3 { margin: 0 0 10px; font-size: 1.1rem; }
+    .history ul { list-style: none; padding: 0; margin: 0; }
+    .history li { font-size: 0.9rem; margin-bottom: 5px; border-bottom: 1px dashed rgba(255,255,255,0.3); }
+    #graphContainer { width: 95%; max-width: 400px; margin-bottom: 20px; }
+    @media(max-width:500px){
+      .display{font-size:1.3rem;height:50px;}
+      button{padding:12px;font-size:0.9rem;}
+      .buttons{gap:8px;}
+    }
+  </style>
+</head>
+<body>
+  <button id="themeToggle" class="theme-toggle">😴</button>
+
+  <div class="calculator">
+    <input id="display" class="display" disabled/>
+    <div class="buttons">
+      <button onclick="append('Math.sin(')">sin</button>
+      <button onclick="append('Math.cos(')">cos</button>
+      <button onclick="append('Math.tan(')">tan</button>
+      <button onclick="append('Math.log10(')">log</button>
+      <button onclick="append('Math.log(')">ln</button>
+      <button onclick="append('Math.sqrt(')">√</button>
+      <button onclick="append('Math.PI')">π</button>
+      <button onclick="append('Math.E')">e</button>
+      <button onclick="power()">^</button>
+      <button onclick="factorial()">n!</button>
+      <button onclick="memoryClear()">MC</button>
+      <button onclick="memoryRecall()">MR</button>
+      <button onclick="memoryAdd()">M+</button>
+      <button onclick="memorySubtract()">M-</button>
+      <button class="clear" onclick="clearDisplay()">C</button>
+      <button onclick="append('7')">7</button>
+      <button onclick="append('8')">8</button>
+      <button onclick="append('9')">9</button>
+      <button onclick="append('/')">÷</button>
+      <button onclick="append('%')">%</button>
+      <button onclick="append('4')">4</button>
+      <button onclick="append('5')">5</button>
+      <button onclick="append('6')">6</button>
+      <button onclick="append('*')">×</button>
+      <button onclick="append('(')">(</button>
+      <button onclick="append('1')">1</button>
+      <button onclick="append('2')">2</button>
+      <button onclick="append('3')">3</button>
+      <button onclick="append('-')">−</button>
+      <button onclick="append(')')">)</button>
+      <button onclick="append('0')">0</button>
+      <button onclick="append('.')">.</button>
+      <button onclick="backspace()">⌫</button>
+      <button onclick="append('+')">+</button>
+      <button class="equal" onclick="calculate()">=</button>
+    </div>
+  </div>
+
+  <div class="history" id="historyBox">
+    <h3>History</h3>
+    <ul id="historyList"></ul>
+  </div>
+
+  <div id="graphContainer">
+    <input id="graphInput" placeholder="Enter function of x, e.g. x*x"
+           style="width:80%;padding:6px;border-radius:6px;" />
+    <button onclick="plotFunction()">📈 Plot</button>
+    <canvas id="graph"></canvas>
+  </div>
+
+  <script>
+    const display = document.getElementById('display');
+    const themeToggle = document.getElementById('themeToggle');
+    let memory = 0, graphInstance;
+
+    function append(v){ display.value += v; }
+    function clearDisplay(){ display.value = ''; }
+    function backspace(){ display.value = display.value.slice(0, -1); }
+    function calculate(){
+      try {
+        const expr = display.value;
+        const result = eval(expr);
+        display.value = result;
+        saveToHistory(expr + " = " + result);
+      } catch { display.value = "Error"; }
+    }
+    function power(){ display.value += "**"; }
+    function factorial(){
+      try {
+        const v = parseInt(display.value);
+        if (isNaN(v) || v < 0) { display.value = "Error"; return; }
+        let r = 1; for (let i = 1; i <= v; i++) r *= i;
+        display.value = r;
+      } catch { display.value = "Error"; }
+    }
+    function memoryAdd(){ memory += parseFloat(display.value) || 0; }
+    function memorySubtract(){ memory -= parseFloat(display.value) || 0; }
+    function memoryRecall(){ display.value = memory; }
+    function memoryClear(){ memory = 0; }
+    function saveToHistory(entry){
+      const li = document.createElement('li');
+      li.textContent = entry;
+      document.getElementById('historyList').prepend(li);
+    }
+    function toggleTheme(){
+      document.body.classList.toggle('dark');
+      themeToggle.textContent = document.body.classList.contains('dark') ? '🌞' : '😴';
+    }
+    themeToggle.addEventListener('click', toggleTheme);
+    document.addEventListener('keydown', e => {
+      if ("0123456789+-*/().".includes(e.key)) append(e.key);
+      else if (e.key === 'Enter') calculate();
+      else if (e.key === 'Backspace') backspace();
+      else if (e.key === 'Escape') clearDisplay();
+    });
+    function plotFunction(){
+      const expr = document.getElementById('graphInput').value;
+      const xs=[], ys=[];
+      for (let x = -10; x <= 10; x += 0.5) {
+        xs.push(x);
+        try { ys.push(eval(expr.replace(/x/g, x))); }
+        catch { ys.push(null); }
+      }
+      if (graphInstance) graphInstance.destroy();
+      const ctx = document.getElementById('graph').getContext('2d');
+      graphInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels: xs, datasets: [{ label: 'f(x)', data: ys, borderColor: '#42a5f5', borderWidth: 2, fill: false }] },
+        options: { responsive: true }
+      });
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
+    }
+  </script>
+</body>
+</html>
